@@ -28,14 +28,27 @@ export default function VideoEffectsOverlay({
     setWatermarkSettings,
     blurSettings,
     setBlurSettings,
+    textRemovalSettings,
+    setTextRemovalSettings,
   } = useUserSettings();
 
   const [rect, setRect] = useState<VideoRect | null>(null);
   const [isDraggingBlur, setIsDraggingBlur] = useState(false);
   const [isResizingBlur, setIsResizingBlur] = useState(false);
+  const [isDraggingText, setIsDraggingText] = useState(false);
+  const [isResizingText, setIsResizingText] = useState(false);
   const [isDraggingWm, setIsDraggingWm] = useState(false);
 
   const blurDragStartRef = useRef<{
+    mouseX: number;
+    mouseY: number;
+    initialX: number;
+    initialY: number;
+    initialW: number;
+    initialH: number;
+  } | null>(null);
+
+  const textDragStartRef = useRef<{
     mouseX: number;
     mouseY: number;
     initialX: number;
@@ -93,9 +106,9 @@ export default function VideoEffectsOverlay({
     };
   }, [videoRef]);
 
-  // Global mouse move and mouse up for dragging blur box or resizing
+  // Global mouse move and mouse up for dragging blur/text box or resizing
   useEffect(() => {
-    if (!isDraggingBlur && !isResizingBlur && !isDraggingWm) return;
+    if (!isDraggingBlur && !isResizingBlur && !isDraggingWm && !isDraggingText && !isResizingText) return;
 
     const handleMouseMove = (e: MouseEvent) => {
       if (!rect) return;
@@ -113,6 +126,22 @@ export default function VideoEffectsOverlay({
           const newW = Math.max(2, Math.min(100 - initialX, Math.round(initialW + deltaXPercent)));
           const newH = Math.max(2, Math.min(100 - initialY, Math.round(initialH + deltaYPercent)));
           setBlurSettings((prev) => ({ ...prev, width: newW, height: newH }));
+        }
+      }
+
+      if ((isDraggingText || isResizingText) && textDragStartRef.current) {
+        const { mouseX, mouseY, initialX, initialY, initialW, initialH } = textDragStartRef.current;
+        const deltaXPercent = ((e.clientX - mouseX) / rect.width) * 100;
+        const deltaYPercent = ((e.clientY - mouseY) / rect.height) * 100;
+
+        if (isDraggingText) {
+          const newX = Math.max(0, Math.min(100 - initialW, Math.round(initialX + deltaXPercent)));
+          const newY = Math.max(0, Math.min(100 - initialH, Math.round(initialY + deltaYPercent)));
+          setTextRemovalSettings((prev) => ({ ...prev, x: newX, y: newY }));
+        } else if (isResizingText) {
+          const newW = Math.max(2, Math.min(100 - initialX, Math.round(initialW + deltaXPercent)));
+          const newH = Math.max(2, Math.min(100 - initialY, Math.round(initialH + deltaYPercent)));
+          setTextRemovalSettings((prev) => ({ ...prev, width: newW, height: newH }));
         }
       }
 
@@ -137,8 +166,11 @@ export default function VideoEffectsOverlay({
       e.stopPropagation();
       setIsDraggingBlur(false);
       setIsResizingBlur(false);
+      setIsDraggingText(false);
+      setIsResizingText(false);
       setIsDraggingWm(false);
       blurDragStartRef.current = null;
+      textDragStartRef.current = null;
       wmDragStartRef.current = null;
     };
 
@@ -149,10 +181,11 @@ export default function VideoEffectsOverlay({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDraggingBlur, isResizingBlur, isDraggingWm, rect, setBlurSettings, setWatermarkSettings, watermarkSettings.scalePercent]);
+  }, [isDraggingBlur, isResizingBlur, isDraggingWm, isDraggingText, isResizingText, rect, setBlurSettings, setTextRemovalSettings, setWatermarkSettings, watermarkSettings.scalePercent]);
 
   const showWatermark = Boolean(watermarkSettings?.enabled && watermarkSettings.imagePath);
   const showBlur = Boolean(blurSettings?.enabled && (blurSettings.width ?? 0) > 0 && (blurSettings.height ?? 0) > 0);
+  const showTextRemoval = Boolean(textRemovalSettings?.enabled && (textRemovalSettings.width ?? 0) > 0 && (textRemovalSettings.height ?? 0) > 0);
 
   if (!rect || isModalOpen) {
     return null;
@@ -185,6 +218,36 @@ export default function VideoEffectsOverlay({
       initialY: blurSettings.y ?? 0,
       initialW: blurSettings.width ?? 25,
       initialH: blurSettings.height ?? 15,
+    };
+  };
+
+  const handleTextMouseDown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!textRemovalSettings || !showHandles) return;
+    setIsDraggingText(true);
+    textDragStartRef.current = {
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      initialX: textRemovalSettings.x ?? 15,
+      initialY: textRemovalSettings.y ?? 80,
+      initialW: textRemovalSettings.width ?? 70,
+      initialH: textRemovalSettings.height ?? 12,
+    };
+  };
+
+  const handleTextResizeMouseDown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!textRemovalSettings || !showHandles) return;
+    setIsResizingText(true);
+    textDragStartRef.current = {
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      initialX: textRemovalSettings.x ?? 15,
+      initialY: textRemovalSettings.y ?? 80,
+      initialW: textRemovalSettings.width ?? 70,
+      initialH: textRemovalSettings.height ?? 12,
     };
   };
 
@@ -286,9 +349,37 @@ export default function VideoEffectsOverlay({
     };
   };
 
+  const getTextRemovalStyle = (): CSSProperties => {
+    if (!textRemovalSettings) return {};
+    const { x = 15, y = 80, width = 70, height = 12 } = textRemovalSettings;
+
+    return {
+      position: 'absolute',
+      left: `${x}%`,
+      top: `${y}%`,
+      width: `${width}%`,
+      height: `${height}%`,
+      backgroundColor: showHandles ? 'rgba(249, 115, 22, 0.12)' : 'transparent',
+      border: showHandles ? '2px dashed #f97316' : 'none',
+      boxShadow: showHandles ? '0 0 12px rgba(249, 115, 22, 0.45)' : 'none',
+      cursor: showHandles ? (isDraggingText ? 'grabbing' : 'grab') : 'default',
+      pointerEvents: showHandles ? 'auto' : 'none',
+      userSelect: 'none',
+      zIndex: 7,
+      borderRadius: '4px',
+      display: 'flex',
+      alignItems: 'flex-start',
+      justifyContent: 'flex-start',
+      padding: '3px 6px',
+      overflow: 'hidden',
+    };
+  };
+
   const watermarkSrc = watermarkSettings?.imagePath
     ? (watermarkSettings.imagePath.startsWith('file://') ? watermarkSettings.imagePath : `file:///${watermarkSettings.imagePath.replace(/\\/g, '/')}`)
     : '';
+
+  const hasActiveEffects = showWatermark || showBlur || showTextRemoval;
 
   return (
     <>
@@ -358,6 +449,51 @@ export default function VideoEffectsOverlay({
             )}
           </div>
         )}
+
+        {showTextRemoval && (
+          <div
+            style={getTextRemovalStyle()}
+            onMouseDown={handleTextMouseDown}
+            title={showHandles ? 'Kéo để di chuyển vùng Text cần xóa (Drag to move)' : undefined}
+          >
+            {showHandles && (
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  color: '#fff',
+                  backgroundColor: 'rgba(234, 88, 12, 0.9)',
+                  padding: '2px 6px',
+                  borderRadius: '3px',
+                  lineHeight: 1.2,
+                  pointerEvents: 'none',
+                }}
+              >
+                ✂ {textRemovalSettings.mode === 'delogo' ? '⚡ Xóa Text' : '✨ AI Inpaint'}
+              </span>
+            )}
+
+            {showHandles && (
+              <div
+                onMouseDown={handleTextResizeMouseDown}
+                style={{
+                  position: 'absolute',
+                  bottom: 0,
+                  right: 0,
+                  width: 14,
+                  height: 14,
+                  backgroundColor: '#f97316',
+                  border: '1.5px solid #ffffff',
+                  borderRadius: '2px',
+                  cursor: 'nwse-resize',
+                  pointerEvents: 'auto',
+                  zIndex: 10,
+                }}
+                title="Kéo góc này để thay đổi kích thước vùng xóa Text"
+              />
+            )}
+          </div>
+        )}
       </div>
 
       {/* Floating quick button on video to open panel if closed */}
@@ -368,16 +504,16 @@ export default function VideoEffectsOverlay({
             e.stopPropagation();
             onOpenPanel();
           }}
-          title="Mở bảng điều chỉnh Logo & Che mờ trực tiếp trên video"
+          title="Mở bảng điều chỉnh Logo, Che mờ & Xóa Text trực tiếp trên video"
           style={{
             position: 'absolute',
             top: 12,
             right: 12,
             zIndex: 25,
             padding: '6px 12px',
-            backgroundColor: (showWatermark || showBlur) ? '#0284c7' : 'rgba(15, 23, 42, 0.85)',
+            backgroundColor: hasActiveEffects ? '#0284c7' : 'rgba(15, 23, 42, 0.85)',
             color: '#ffffff',
-            border: (showWatermark || showBlur) ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.2)',
+            border: hasActiveEffects ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.2)',
             borderRadius: '20px',
             cursor: 'pointer',
             fontSize: '12px',
@@ -389,8 +525,8 @@ export default function VideoEffectsOverlay({
             backdropFilter: 'blur(8px)',
           }}
         >
-          <span>🎨 Logo & Blur</span>
-          {(showWatermark || showBlur) && (
+          <span>🎨 Hiệu ứng & Xóa Text</span>
+          {hasActiveEffects && (
             <span
               style={{
                 width: '7px',

@@ -55,7 +55,8 @@ function TopMenu({
   toggleEffectsPanel?: () => void,
 }) {
   const { t } = useTranslation();
-  const { customOutDir, setCustomOutDir, simpleMode, outFormatLocked, setOutFormatLocked, darkMode, watermarkSettings, blurSettings } = useUserSettings();
+  const { customOutDir, setCustomOutDir, simpleMode, outFormatLocked, setOutFormatLocked, darkMode, watermarkSettings, blurSettings, textRemovalSettings } = useUserSettings();
+  const hasAnyEffects = Boolean(watermarkSettings?.enabled || blurSettings?.enabled || textRemovalSettings?.enabled);
   const actionTitle = useActionTitle();
   const workingDirButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -123,21 +124,21 @@ function TopMenu({
           {toggleEffectsPanel && (
             <Button
               onClick={withBlur(toggleEffectsPanel)}
-              title={t('Logo & Blur settings and preview')}
+              title={t('Logo, Blur & Xóa Text settings and preview')}
               style={{
                 backgroundColor: effectsPanelOpen
                   ? 'var(--accent-9)'
-                  : (watermarkSettings?.enabled || blurSettings?.enabled)
+                  : hasAnyEffects
                   ? 'var(--accent-5)'
                   : undefined,
-                color: (effectsPanelOpen || watermarkSettings?.enabled || blurSettings?.enabled) ? 'white' : undefined,
-                borderColor: (watermarkSettings?.enabled || blurSettings?.enabled) ? 'var(--accent-9)' : undefined,
-                fontWeight: (watermarkSettings?.enabled || blurSettings?.enabled) ? 600 : undefined,
+                color: (effectsPanelOpen || hasAnyEffects) ? 'white' : undefined,
+                borderColor: hasAnyEffects ? 'var(--accent-9)' : undefined,
+                fontWeight: hasAnyEffects ? 600 : undefined,
               }}
             >
               <FaPaintBrush style={{ fontSize: '.8em', marginRight: '.4em', verticalAlign: 'middle' }} />
-              {t('Logo & Blur')}
-              {(watermarkSettings?.enabled || blurSettings?.enabled) && (
+              {t('Logo & Hiệu ứng')}
+              {hasAnyEffects && (
                 <span style={{ marginLeft: '.4em', fontSize: '.75em', padding: '1px 5px', background: 'rgba(0,0,0,0.35)', borderRadius: '3px' }}>
                   ON
                 </span>

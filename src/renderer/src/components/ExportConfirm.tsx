@@ -174,7 +174,7 @@ function ExportConfirm({
 }) {
   const { t } = useTranslation();
 
-  const { keyframeCut, toggleKeyframeCut, preserveMovData, setPreserveMovData, preserveMetadata, setPreserveMetadata, preserveChapters, setPreserveChapters, movFastStart, setMovFastStart, avoidNegativeTs, setAvoidNegativeTs, autoDeleteMergedSegments, exportConfirmEnabled, toggleExportConfirmEnabled, segmentsToChapters, setSegmentsToChapters, preserveMetadataOnMerge, setPreserveMetadataOnMerge, enableSmartCut, setEnableSmartCut, effectiveExportMode, enableOverwriteOutput, setEnableOverwriteOutput, ffmpegExperimental, setFfmpegExperimental, cutFromAdjustmentFrames, setCutFromAdjustmentFrames, cutToAdjustmentFrames, setCutToAdjustmentFrames, setCutFileTemplate, setCutMergedFileTemplate, simpleMode, keyframesEnabled, watermarkSettings, setWatermarkSettings, blurSettings, setBlurSettings, exportEncoder, setExportEncoder } = useUserSettings();
+  const { keyframeCut, toggleKeyframeCut, preserveMovData, setPreserveMovData, preserveMetadata, setPreserveMetadata, preserveChapters, setPreserveChapters, movFastStart, setMovFastStart, avoidNegativeTs, setAvoidNegativeTs, autoDeleteMergedSegments, exportConfirmEnabled, toggleExportConfirmEnabled, segmentsToChapters, setSegmentsToChapters, preserveMetadataOnMerge, setPreserveMetadataOnMerge, enableSmartCut, setEnableSmartCut, effectiveExportMode, enableOverwriteOutput, setEnableOverwriteOutput, ffmpegExperimental, setFfmpegExperimental, cutFromAdjustmentFrames, setCutFromAdjustmentFrames, cutToAdjustmentFrames, setCutToAdjustmentFrames, setCutFileTemplate, setCutMergedFileTemplate, simpleMode, keyframesEnabled, watermarkSettings, setWatermarkSettings, blurSettings, setBlurSettings, textRemovalSettings, setTextRemovalSettings, exportEncoder, setExportEncoder } = useUserSettings();
 
   const onChooseWatermarkImage = useCallback(async () => {
     const { canceled, filePaths } = await showOpenDialog({
@@ -851,8 +851,89 @@ function ExportConfirm({
                 </AnimatedTr>
               )}
 
+              {/* Text Removal Section */}
+              <AnimatedTr>
+                <td>
+                  {t('Fast Text Removal (ROI)')}
+                  {textRemovalSettings.enabled && (
+                    <div style={{ fontSize: '.8em', color: 'var(--amber-11)', marginTop: '0.2em' }}>
+                      {textRemovalSettings.mode === 'delogo' ? '⚡ Delogo (50-100+ FPS)' : '✨ AI Inpaint (ROI)'}
+                      {textRemovalSettings.staticPosition ? ' • Static Mask' : ''}
+                    </div>
+                  )}
+                </td>
+                <td>
+                  <Switch
+                    checked={textRemovalSettings.enabled}
+                    onCheckedChange={(enabled) => setTextRemovalSettings((prev) => ({ ...prev, enabled }))}
+                  />
+                </td>
+                <td />
+              </AnimatedTr>
+
+              {textRemovalSettings.enabled && (
+                <AnimatedTr>
+                  <td style={{ paddingLeft: '1.5em', fontSize: '.9em', color: 'var(--gray-11)' }}>
+                    {t('Text ROI (X, Y, W, H %)')}
+                  </td>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
+                      <TextInput
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={textRemovalSettings.x}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          if (!Number.isNaN(val)) setTextRemovalSettings((prev) => ({ ...prev, x: val }));
+                        }}
+                        style={{ width: '3em', textAlign: 'center', height: 22 }}
+                        title="X (%)"
+                      />
+                      <TextInput
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={textRemovalSettings.y}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          if (!Number.isNaN(val)) setTextRemovalSettings((prev) => ({ ...prev, y: val }));
+                        }}
+                        style={{ width: '3em', textAlign: 'center', height: 22 }}
+                        title="Y (%)"
+                      />
+                      <TextInput
+                        type="number"
+                        min={1}
+                        max={100}
+                        value={textRemovalSettings.width}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          if (!Number.isNaN(val)) setTextRemovalSettings((prev) => ({ ...prev, width: val }));
+                        }}
+                        style={{ width: '3em', textAlign: 'center', height: 22 }}
+                        title="Width (%)"
+                      />
+                      <TextInput
+                        type="number"
+                        min={1}
+                        max={100}
+                        value={textRemovalSettings.height}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          if (!Number.isNaN(val)) setTextRemovalSettings((prev) => ({ ...prev, height: val }));
+                        }}
+                        style={{ width: '3em', textAlign: 'center', height: 22 }}
+                        title="Height (%)"
+                      />
+                    </div>
+                  </td>
+                  <td />
+                </AnimatedTr>
+              )}
+
               {/* Hardware Encoder selection */}
-              {(isEncoding || watermarkSettings.enabled || blurSettings.enabled) && (
+              {(isEncoding || watermarkSettings.enabled || blurSettings.enabled || textRemovalSettings.enabled) && (
                 <AnimatedTr>
                   <td>
                     {t('Fast Export GPU Encoder')}

@@ -187,6 +187,16 @@ const defaults: Config = {
     height: 15,
     strength: 15,
   },
+  textRemovalSettings: {
+    enabled: false,
+    x: 10,
+    y: 82,
+    width: 80,
+    height: 12,
+    mode: 'delogo',
+    staticPosition: true,
+    band: 2,
+  },
   exportEncoder: 'auto',
 };
 

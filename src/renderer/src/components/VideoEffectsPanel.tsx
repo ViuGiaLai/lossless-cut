@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import { memo, useCallback, useState } from 'react';
-import { FaTimes, FaMagic, FaFolderOpen, FaEye, FaEyeSlash } from 'react-icons/fa';
+import { FaTimes, FaMagic, FaFolderOpen, FaEye, FaEyeSlash, FaEraser } from 'react-icons/fa';
 import { MdBlurOn, MdPhotoSizeSelectActual } from 'react-icons/md';
 import { useTranslation } from 'react-i18next';
 import useUserSettings from '../hooks/useUserSettings';
@@ -38,6 +38,29 @@ const PRESETS = [
   },
 ];
 
+const TEXT_PRESETS = [
+  {
+    name: '⬇ Phụ đề dưới đáy',
+    desc: 'Vùng chữ chạy đáy màn hình',
+    settings: { x: 10, y: 82, width: 80, height: 12 },
+  },
+  {
+    name: '↖ Watermark góc trái',
+    desc: 'Logo kênh / ID video góc trái',
+    settings: { x: 2, y: 2, width: 35, height: 9 },
+  },
+  {
+    name: '↗ Watermark góc phải',
+    desc: 'Logo kênh / ID video góc phải',
+    settings: { x: 63, y: 2, width: 35, height: 9 },
+  },
+  {
+    name: '↘ Chữ góc dưới phải',
+    desc: 'ID tài khoản góc dưới phải',
+    settings: { x: 60, y: 86, width: 38, height: 10 },
+  },
+];
+
 function VideoEffectsPanel({ onClose, showHandles, setShowHandles }: Props) {
   const { t } = useTranslation();
   const {
@@ -45,11 +68,13 @@ function VideoEffectsPanel({ onClose, showHandles, setShowHandles }: Props) {
     setWatermarkSettings,
     blurSettings,
     setBlurSettings,
+    textRemovalSettings,
+    setTextRemovalSettings,
     exportEncoder,
     setExportEncoder,
   } = useUserSettings();
 
-  const [activeTab, setActiveTab] = useState<'blur' | 'logo' | 'gpu'>('blur');
+  const [activeTab, setActiveTab] = useState<'text' | 'blur' | 'logo' | 'gpu'>('text');
 
   const onSelectLogoImage = useCallback(async () => {
     const { canceled, filePaths } = await showOpenDialog({
@@ -74,11 +99,19 @@ function VideoEffectsPanel({ onClose, showHandles, setShowHandles }: Props) {
     }));
   };
 
+  const applyTextPreset = (preset: typeof TEXT_PRESETS[0]) => {
+    setTextRemovalSettings((prev) => ({
+      ...prev,
+      ...preset.settings,
+      enabled: true,
+    }));
+  };
+
   const panelStyle: CSSProperties = {
     position: 'absolute',
     top: 12,
     right: 12,
-    width: 370,
+    width: 380,
     maxHeight: 'calc(100% - 24px)',
     backgroundColor: 'rgba(18, 20, 26, 0.94)',
     color: '#e2e8f0',
@@ -93,22 +126,30 @@ function VideoEffectsPanel({ onClose, showHandles, setShowHandles }: Props) {
     border: '1px solid rgba(255, 255, 255, 0.12)',
   };
 
-  const tabButtonStyle = (tab: 'blur' | 'logo' | 'gpu'): CSSProperties => ({
-    flex: 1,
-    padding: '8px 4px',
-    backgroundColor: activeTab === tab ? 'rgba(56, 189, 248, 0.2)' : 'transparent',
-    color: activeTab === tab ? '#38bdf8' : '#94a3b8',
-    border: 'none',
-    borderBottom: activeTab === tab ? '2px solid #38bdf8' : '2px solid transparent',
-    cursor: 'pointer',
-    fontWeight: activeTab === tab ? 600 : 500,
-    fontSize: '12px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '5px',
-    transition: 'all 0.15s ease',
-  });
+  const tabButtonStyle = (tab: 'text' | 'blur' | 'logo' | 'gpu'): CSSProperties => {
+    const isActive = activeTab === tab;
+    let activeColor = '#38bdf8';
+    if (tab === 'text') activeColor = '#f97316';
+    if (tab === 'logo') activeColor = '#34d399';
+    if (tab === 'gpu') activeColor = '#a855f7';
+
+    return {
+      flex: 1,
+      padding: '8px 2px',
+      backgroundColor: isActive ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+      color: isActive ? activeColor : '#94a3b8',
+      border: 'none',
+      borderBottom: isActive ? `2px solid ${activeColor}` : '2px solid transparent',
+      cursor: 'pointer',
+      fontWeight: isActive ? 600 : 500,
+      fontSize: '11px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '4px',
+      transition: 'all 0.15s ease',
+    };
+  };
 
   return (
     <div style={panelStyle} className="no-drag">
@@ -170,21 +211,220 @@ function VideoEffectsPanel({ onClose, showHandles, setShowHandles }: Props) {
 
       {/* Tabs */}
       <div style={{ display: 'flex', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', background: 'rgba(0,0,0,0.2)' }}>
+        <button type="button" style={tabButtonStyle('text')} onClick={() => setActiveTab('text')}>
+          <FaEraser size={13} />
+          Xóa Text {textRemovalSettings.enabled && '●'}
+        </button>
         <button type="button" style={tabButtonStyle('blur')} onClick={() => setActiveTab('blur')}>
-          <MdBlurOn size={15} />
+          <MdBlurOn size={14} />
           Che mờ {blurSettings.enabled && '●'}
         </button>
         <button type="button" style={tabButtonStyle('logo')} onClick={() => setActiveTab('logo')}>
-          <MdPhotoSizeSelectActual size={14} />
+          <MdPhotoSizeSelectActual size={13} />
           Logo / Watermark {watermarkSettings.enabled && '●'}
         </button>
         <button type="button" style={tabButtonStyle('gpu')} onClick={() => setActiveTab('gpu')}>
-          ⚡ Tốc độ GPU
+          ⚡ GPU
         </button>
       </div>
 
       {/* Content */}
       <div style={{ padding: '14px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        {/* Tab 0: Xóa Text (Delogo / ROI Inpaint) */}
+        {activeTab === 'text' && (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(249, 115, 22, 0.1)', borderRadius: '8px', border: '1px solid rgba(249, 115, 22, 0.3)' }}>
+              <span style={{ fontWeight: 600, color: textRemovalSettings.enabled ? '#f97316' : '#fed7aa' }}>
+                Bật Xóa Text (ROI Delogo)
+              </span>
+              <Switch
+                checked={textRemovalSettings.enabled}
+                onCheckedChange={(enabled) => setTextRemovalSettings((prev) => ({ ...prev, enabled }))}
+              />
+            </div>
+
+            {textRemovalSettings.enabled ? (
+              <>
+                {/* Method selector */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', background: 'rgba(0, 0, 0, 0.25)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8' }}>Phương thức xử lý:</div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setTextRemovalSettings((prev) => ({ ...prev, mode: 'delogo' }))}
+                      style={{
+                        flex: 1,
+                        padding: '6px 8px',
+                        borderRadius: '6px',
+                        border: textRemovalSettings.mode === 'delogo' ? '1px solid #f97316' : '1px solid rgba(255, 255, 255, 0.1)',
+                        background: textRemovalSettings.mode === 'delogo' ? 'rgba(249, 115, 22, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+                        color: textRemovalSettings.mode === 'delogo' ? '#fdba74' : '#94a3b8',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                      }}
+                    >
+                      ⚡ Siêu nhanh (Delogo)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTextRemovalSettings((prev) => ({ ...prev, mode: 'ai' }))}
+                      style={{
+                        flex: 1,
+                        padding: '6px 8px',
+                        borderRadius: '6px',
+                        border: textRemovalSettings.mode === 'ai' ? '1px solid #f97316' : '1px solid rgba(255, 255, 255, 0.1)',
+                        background: textRemovalSettings.mode === 'ai' ? 'rgba(249, 115, 22, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+                        color: textRemovalSettings.mode === 'ai' ? '#fdba74' : '#94a3b8',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                      }}
+                    >
+                      ✨ AI Inpaint (ROI)
+                    </button>
+                  </div>
+                  <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>
+                    {textRemovalSettings.mode === 'delogo'
+                      ? 'Nội suy viền gradient qua FFmpeg native, tốc độ vài trăm FPS không gây lag.'
+                      : 'AI tái tạo chi tiết nền phía sau text, tối ưu chỉ chạy trên vùng crop.'}
+                  </div>
+                </div>
+
+                {/* Static mask toggle */}
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', background: 'rgba(255, 255, 255, 0.04)', padding: '8px 10px', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                  <input
+                    type="checkbox"
+                    checked={textRemovalSettings.staticPosition}
+                    onChange={(e) => setTextRemovalSettings((prev) => ({ ...prev, staticPosition: e.target.checked }))}
+                    style={{ accentColor: '#f97316', cursor: 'pointer' }}
+                  />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '12px', color: '#fed7aa' }}>Text cố định vị trí (Static Mask)</div>
+                    <div style={{ fontSize: '10px', color: '#94a3b8' }}>Dùng chung 1 vùng chọn cho toàn video, tiết kiệm 98% thời gian</div>
+                  </div>
+                </label>
+
+                {/* Presets */}
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', color: '#f97316', fontWeight: 600, fontSize: '12px' }}>
+                    <FaMagic size={12} />
+                    <span>Vị trí text mẫu (Bấm để chọn nhanh):</span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                    {TEXT_PRESETS.map((p) => (
+                      <button
+                        key={p.name}
+                        type="button"
+                        onClick={() => applyTextPreset(p)}
+                        style={{
+                          padding: '8px 6px',
+                          background: 'rgba(255, 255, 255, 0.06)',
+                          border: '1px solid rgba(255, 255, 255, 0.15)',
+                          borderRadius: '6px',
+                          color: '#f1f5f9',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'background 0.15s',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'rgba(249, 115, 22, 0.2)';
+                          e.currentTarget.style.borderColor = '#f97316';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
+                          e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+                        }}
+                      >
+                        <div style={{ fontWeight: 600, fontSize: '12px' }}>{p.name}</div>
+                        <div style={{ fontSize: '10px', color: '#94a3b8' }}>{p.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Manual sliders */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', background: 'rgba(0, 0, 0, 0.2)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 600, color: '#fed7aa' }}>
+                    Tọa độ vùng chữ (ROI):
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#94a3b8' }}>
+                        <span>Vị trí X</span>
+                        <span style={{ color: '#fed7aa' }}>{Math.round(textRemovalSettings.x)}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={textRemovalSettings.x}
+                        onChange={(e) => setTextRemovalSettings((prev) => ({ ...prev, x: Number(e.target.value) }))}
+                        style={{ width: '100%', accentColor: '#f97316' }}
+                      />
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#94a3b8' }}>
+                        <span>Vị trí Y</span>
+                        <span style={{ color: '#fed7aa' }}>{Math.round(textRemovalSettings.y)}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={textRemovalSettings.y}
+                        onChange={(e) => setTextRemovalSettings((prev) => ({ ...prev, y: Number(e.target.value) }))}
+                        style={{ width: '100%', accentColor: '#f97316' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#94a3b8' }}>
+                        <span>Chiều rộng</span>
+                        <span style={{ color: '#fed7aa' }}>{Math.round(textRemovalSettings.width)}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="1"
+                        max="100"
+                        value={textRemovalSettings.width}
+                        onChange={(e) => setTextRemovalSettings((prev) => ({ ...prev, width: Number(e.target.value) }))}
+                        style={{ width: '100%', accentColor: '#f97316' }}
+                      />
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#94a3b8' }}>
+                        <span>Chiều cao</span>
+                        <span style={{ color: '#fed7aa' }}>{Math.round(textRemovalSettings.height)}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="1"
+                        max="100"
+                        value={textRemovalSettings.height}
+                        onChange={(e) => setTextRemovalSettings((prev) => ({ ...prev, height: Number(e.target.value) }))}
+                        style={{ width: '100%', accentColor: '#f97316' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ fontSize: '11px', color: '#fed7aa', background: 'rgba(249, 115, 22, 0.1)', border: '1px dashed rgba(249, 115, 22, 0.4)', borderRadius: '6px', padding: '8px', lineHeight: 1.4 }}>
+                  💡 <b>Mẹo thao tác:</b> Bạn có thể dùng chuột <b>kéo di chuyển và kéo 4 góc khung viền màu cam</b> trực tiếp trên màn hình video để căn chỉnh vừa khít chữ cần xóa!
+                </div>
+              </>
+            ) : (
+              <div style={{ textAlign: 'center', color: '#94a3b8', padding: '30px 10px', fontSize: '12px', lineHeight: 1.6 }}>
+                Gạt công tắc ở trên để bật tính năng <b>Xóa Text</b> trên video (phụ đề, watermark cố định).
+              </div>
+            )}
+          </>
+        )}
         {/* Tab 1: Che mờ (Blur) */}
         {activeTab === 'blur' && (
           <>

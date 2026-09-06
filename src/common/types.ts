@@ -118,6 +118,7 @@ export interface Config {
   ffmpegHwaccel: FfmpegHwAccel,
   watermarkSettings: WatermarkSettings,
   blurSettings: BlurSettings,
+  textRemovalSettings: TextRemovalSettings,
   exportEncoder: VideoExportEncoder,
 }
 
@@ -141,6 +142,19 @@ export interface BlurSettings {
   width: number; // % (0-100)
   height: number; // % (0-100)
   strength: number; // default 15 (5 - 50)
+}
+
+export type TextRemovalMode = 'delogo' | 'ai';
+
+export interface TextRemovalSettings {
+  enabled: boolean;
+  x: number; // % (0-100)
+  y: number; // % (0-100)
+  width: number; // % (0-100)
+  height: number; // % (0-100)
+  mode: TextRemovalMode; // 'delogo' (fast) or 'ai' (quality)
+  staticPosition: boolean; // default: true
+  band?: number; // edge band thickness
 }
 
 export type VideoExportEncoder = 'auto' | 'nvenc' | 'qsv' | 'amf' | 'mf' | 'cpu_ultrafast';

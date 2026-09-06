@@ -201,6 +201,8 @@ export default function useUserSettingsRoot() {
   useEffect(() => safeSetConfig({ watermarkSettings }), [watermarkSettings]);
   const [blurSettings, setBlurSettings] = useState(safeGetConfigInitial('blurSettings'));
   useEffect(() => safeSetConfig({ blurSettings }), [blurSettings]);
+  const [textRemovalSettings, setTextRemovalSettings] = useState(safeGetConfigInitial('textRemovalSettings'));
+  useEffect(() => safeSetConfig({ textRemovalSettings }), [textRemovalSettings]);
   const [exportEncoder, setExportEncoder] = useState(safeGetConfigInitial('exportEncoder'));
   useEffect(() => safeSetConfig({ exportEncoder }), [exportEncoder]);
 
@@ -324,6 +326,7 @@ export default function useUserSettingsRoot() {
     ffmpegHwaccel,
     watermarkSettings,
     blurSettings,
+    textRemovalSettings,
     exportEncoder,
   };
 
@@ -410,6 +413,7 @@ export default function useUserSettingsRoot() {
     setFfmpegHwaccel,
     setWatermarkSettings,
     setBlurSettings,
+    setTextRemovalSettings,
     setExportEncoder,
   };
 }

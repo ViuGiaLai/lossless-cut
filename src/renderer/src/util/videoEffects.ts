@@ -1,4 +1,4 @@
-import type { BlurSettings, VideoExportEncoder, WatermarkPosition, WatermarkSettings } from '../../../common/types';
+import type { BlurSettings, TextRemovalSettings, VideoExportEncoder, WatermarkPosition, WatermarkSettings } from '../../../common/types';
 
 export interface VideoDimensions {
   width?: number | undefined;
@@ -8,6 +8,7 @@ export interface VideoDimensions {
 export interface BuildVideoFilterComplexParams {
   watermarkSettings?: WatermarkSettings | undefined;
   blurSettings?: BlurSettings | undefined;
+  textRemovalSettings?: TextRemovalSettings | undefined;
   videoDimensions?: VideoDimensions | undefined;
   videoInputIndex?: number;
   watermarkInputIndex?: number;
@@ -50,6 +51,7 @@ export function getWatermarkOverlayCoords(
 export function buildVideoFilterComplex({
   watermarkSettings,
   blurSettings,
+  textRemovalSettings,
   videoDimensions,
   videoInputIndex = 0,
   watermarkInputIndex = 1,
@@ -60,13 +62,19 @@ export function buildVideoFilterComplex({
     (blurSettings.height ?? 0) > 0,
   );
 
+  const isTextRemovalActive = Boolean(
+    textRemovalSettings?.enabled &&
+    (textRemovalSettings.width ?? 0) > 0 &&
+    (textRemovalSettings.height ?? 0) > 0,
+  );
+
   const isWatermarkActive = Boolean(
     watermarkSettings?.enabled &&
     watermarkSettings.imagePath &&
     watermarkSettings.imagePath.trim().length > 0,
   );
 
-  if (!isBlurActive && !isWatermarkActive) {
+  if (!isBlurActive && !isWatermarkActive && !isTextRemovalActive) {
     return {
       hasEffects: false,
       filterComplex: undefined,
@@ -98,6 +106,36 @@ export function buildVideoFilterComplex({
     );
 
     currentVideoOutput = '[v_blurred]';
+  }
+
+  // 1b. Process Text Removal Filter (Fast Delogo Inpainting) if enabled
+  if (isTextRemovalActive && textRemovalSettings) {
+    const xNorm = Math.max(0, Math.min(100, textRemovalSettings.x ?? 0)) / 100;
+    const yNorm = Math.max(0, Math.min(100, textRemovalSettings.y ?? 0)) / 100;
+    const wNorm = Math.max(0.5, Math.min(100, textRemovalSettings.width ?? 20)) / 100;
+    const hNorm = Math.max(0.5, Math.min(100, textRemovalSettings.height ?? 10)) / 100;
+
+    const vW = videoDimensions?.width && videoDimensions.width > 0 ? videoDimensions.width : 1920;
+    const vH = videoDimensions?.height && videoDimensions.height > 0 ? videoDimensions.height : 1080;
+
+    let x = Math.round(vW * xNorm);
+    let y = Math.round(vH * yNorm);
+    let w = Math.round(vW * wNorm);
+    let h = Math.round(vH * hNorm);
+
+    // delogo requires at least 1px boundary around the frame
+    x = Math.max(1, Math.min(x, vW - 4));
+    y = Math.max(1, Math.min(y, vH - 4));
+    w = Math.max(2, Math.min(w, vW - x - 1));
+    h = Math.max(2, Math.min(h, vH - y - 1));
+
+    const delogoFilter = `delogo=x=${x}:y=${y}:w=${w}:h=${h}:show=0`;
+
+    filters.push(
+      `${currentVideoOutput}${delogoFilter}[v_text_removed]`,
+    );
+
+    currentVideoOutput = '[v_text_removed]';
   }
 
   // 2. Process Watermark Filter if enabled

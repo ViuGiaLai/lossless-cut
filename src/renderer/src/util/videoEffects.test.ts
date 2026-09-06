@@ -77,6 +77,37 @@ describe('videoEffects', () => {
       expect(result.filterComplex).toContain('[v_blurred][wm_ready]overlay=');
       expect(result.videoOutputLabel).toBe('[v_watermarked]');
     });
+
+    it('builds text removal delogo filter correctly when text removal is enabled', () => {
+      const result = buildVideoFilterComplex({
+        textRemovalSettings: { enabled: true, x: 10, y: 80, width: 80, height: 15, mode: 'delogo', staticPosition: true },
+        videoDimensions: { width: 1920, height: 1080 },
+      });
+      expect(result.hasEffects).toBe(true);
+      expect(result.filterComplex).toContain('delogo=x=192:y=864:w=1536:h=162:show=0');
+      expect(result.videoOutputLabel).toBe('[v_text_removed]');
+    });
+
+    it('combines text removal, blur, and watermark in a pipeline', () => {
+      const result = buildVideoFilterComplex({
+        blurSettings: { enabled: true, x: 10, y: 10, width: 20, height: 20, strength: 15 },
+        textRemovalSettings: { enabled: true, x: 20, y: 70, width: 60, height: 20, mode: 'delogo', staticPosition: true },
+        watermarkSettings: {
+          enabled: true,
+          imagePath: 'logo.png',
+          position: 'bottom-right',
+          margin: 10,
+          scalePercent: 20,
+          opacity: 1,
+        },
+        videoDimensions: { width: 1920, height: 1080 },
+      });
+      expect(result.hasEffects).toBe(true);
+      expect(result.filterComplex).toContain('boxblur=15:2');
+      expect(result.filterComplex).toContain('[v_blurred]delogo=');
+      expect(result.filterComplex).toContain('[v_text_removed][wm_ready]overlay=');
+      expect(result.videoOutputLabel).toBe('[v_watermarked]');
+    });
   });
 
   describe('resolveVideoEncoder', () => {
