@@ -88,6 +88,26 @@ describe('videoEffects', () => {
       expect(result.videoOutputLabel).toBe('[v_text_removed]');
     });
 
+    it('safely clamps delogo boundaries when coordinates touch frame edges (0% or 100%)', () => {
+      const result = buildVideoFilterComplex({
+        textRemovalSettings: { enabled: true, x: 0, y: 0, width: 100, height: 100, mode: 'delogo', staticPosition: true },
+        videoDimensions: { width: 1920, height: 1080 },
+      });
+      expect(result.hasEffects).toBe(true);
+      // FFmpeg delogo requires x >= 1, y >= 1, x+w < width, y+h < height
+      expect(result.filterComplex).toContain('delogo=x=1:y=1:w=1918:h=1078:show=0');
+    });
+
+    it('adapts delogo coordinates to custom resolutions like 720p (1280x720)', () => {
+      const result = buildVideoFilterComplex({
+        textRemovalSettings: { enabled: true, x: 10, y: 80, width: 80, height: 15, mode: 'delogo', staticPosition: true },
+        videoDimensions: { width: 1280, height: 720 },
+      });
+      expect(result.hasEffects).toBe(true);
+      // 1280 * 0.1 = 128, 720 * 0.8 = 576, 1280 * 0.8 = 1024, 720 * 0.15 = 108
+      expect(result.filterComplex).toContain('delogo=x=128:y=576:w=1024:h=108:show=0');
+    });
+
     it('combines text removal, blur, and watermark in a pipeline', () => {
       const result = buildVideoFilterComplex({
         blurSettings: { enabled: true, x: 10, y: 10, width: 20, height: 20, strength: 15 },

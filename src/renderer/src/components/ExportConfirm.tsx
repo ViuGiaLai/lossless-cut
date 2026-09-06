@@ -262,12 +262,22 @@ function ExportConfirm({
       }
     }
 
+    if (textRemovalSettings.enabled) {
+      generic.push({
+        text: `✂ ${t('Fast Text Removal (ROI) is active: {{mode}}, ROI: {{w}}%x{{h}}%', {
+          mode: textRemovalSettings.mode === 'delogo' ? 'Delogo (Super fast)' : 'AI Inpaint (ROI)',
+          w: Math.round(textRemovalSettings.width),
+          h: Math.round(textRemovalSettings.height),
+        })}`,
+      });
+    }
+
     return {
       generic,
       specific,
       totalNum: generic.filter((n) => n.warning).length + Object.values(specific).filter((n) => n != null && n.warning).length,
     };
-  }, [effectiveExportMode, areWeCuttingProblematicStreams, mainCopiedThumbnailStreams, isMov, isIpod, movFastStart, t, preserveMovData, areWeCutting, needSmartCut, isEncoding, keyframeCut, enableOverwriteOutput, simpleMode, willMerge, avoidNegativeTs, outFormat, outputPlaybackRate, keyframesEnabled, haveSegmentWithProblematicKeyframe]);
+  }, [effectiveExportMode, areWeCuttingProblematicStreams, mainCopiedThumbnailStreams, isMov, isIpod, movFastStart, t, preserveMovData, areWeCutting, needSmartCut, isEncoding, keyframeCut, enableOverwriteOutput, simpleMode, willMerge, avoidNegativeTs, outFormat, outputPlaybackRate, keyframesEnabled, haveSegmentWithProblematicKeyframe, textRemovalSettings]);
 
   const exportModeDescription = useMemo(() => ({
     segments_to_chapters: t('Don\'t cut the file, but instead export an unmodified original which has chapters generated from segments'),

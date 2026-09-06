@@ -519,14 +519,20 @@ function useFfmpegOperations({ filePath, treatInputFileModifiedTimeAsStart, trea
   }) => {
     invariant(filePath != null);
 
-    const videoStream = allFilesMeta[filePath]?.streams?.find((s) => s.index === videoStreamIndex);
+    const fileMeta = allFilesMeta[filePath] ?? Object.values(allFilesMeta)[0];
+    const videoStream = fileMeta?.streams?.find((s) => s.index === videoStreamIndex)
+      ?? fileMeta?.streams?.find((s) => s.codec_type === 'video');
+    const isRotated = videoStream?.tags?.rotate === '90' || videoStream?.tags?.rotate === '270' || videoStream?.tags?.rotate === '-90' || videoStream?.tags?.rotate === '-270';
+    const effectiveWidth = isRotated ? videoStream?.height : videoStream?.width;
+    const effectiveHeight = isRotated ? videoStream?.width : videoStream?.height;
+
     const effectsResult = buildVideoFilterComplex({
       watermarkSettings,
       blurSettings,
       textRemovalSettings,
       videoDimensions: {
-        width: videoStream?.width,
-        height: videoStream?.height,
+        width: effectiveWidth,
+        height: effectiveHeight,
       },
       videoInputIndex: 0,
       watermarkInputIndex: 1,
