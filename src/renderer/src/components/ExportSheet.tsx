@@ -48,7 +48,7 @@ function ExportSheet({
 
       <AnimatePresence>
         {visible && (
-          <div key="0" style={{ position: 'fixed', right: 0, bottom: 0, display: 'flex', alignItems: 'center', margin: 5 }}>
+          <div key="0" style={{ position: 'fixed', right: 0, bottom: 0, display: 'flex', alignItems: 'center', margin: 5, zIndex: 101 }}>
             {renderBottom != null && (
               <motion.div
                 initial={{ opacity: 0, translateX: 50 }}

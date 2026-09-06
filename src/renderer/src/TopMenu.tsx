@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { memo, useCallback, useEffect, useRef } from 'react';
 import { IoIosSettings } from 'react-icons/io';
-import { FaFilter, FaList, FaLock, FaMoon, FaSun, FaUnlock } from 'react-icons/fa';
+import { FaFilter, FaList, FaLock, FaMoon, FaPaintBrush, FaSun, FaUnlock } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import Button from './components/Button';
 
@@ -35,6 +35,8 @@ function TopMenu({
   selectedSegments,
   isCustomFormatSelected,
   toggleDarkMode,
+  effectsPanelOpen,
+  toggleEffectsPanel,
 }: {
   filePath: string | undefined,
   fileFormat: string | undefined,
@@ -49,9 +51,11 @@ function TopMenu({
   selectedSegments: unknown[],
   isCustomFormatSelected: boolean,
   toggleDarkMode: () => void,
+  effectsPanelOpen?: boolean,
+  toggleEffectsPanel?: () => void,
 }) {
   const { t } = useTranslation();
-  const { customOutDir, setCustomOutDir, simpleMode, outFormatLocked, setOutFormatLocked, darkMode } = useUserSettings();
+  const { customOutDir, setCustomOutDir, simpleMode, outFormatLocked, setOutFormatLocked, darkMode, watermarkSettings, blurSettings } = useUserSettings();
   const actionTitle = useActionTitle();
   const workingDirButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -115,6 +119,31 @@ function TopMenu({
             {enabledStreamsFilter == null && <FaFilter style={{ fontSize: '.7em', marginRight: '.4em' }} />}
             {t('Filter tracks')}
           </Button>
+
+          {toggleEffectsPanel && (
+            <Button
+              onClick={withBlur(toggleEffectsPanel)}
+              title={t('Logo & Blur settings and preview')}
+              style={{
+                backgroundColor: effectsPanelOpen
+                  ? 'var(--accent-9)'
+                  : (watermarkSettings?.enabled || blurSettings?.enabled)
+                  ? 'var(--accent-5)'
+                  : undefined,
+                color: (effectsPanelOpen || watermarkSettings?.enabled || blurSettings?.enabled) ? 'white' : undefined,
+                borderColor: (watermarkSettings?.enabled || blurSettings?.enabled) ? 'var(--accent-9)' : undefined,
+                fontWeight: (watermarkSettings?.enabled || blurSettings?.enabled) ? 600 : undefined,
+              }}
+            >
+              <FaPaintBrush style={{ fontSize: '.8em', marginRight: '.4em', verticalAlign: 'middle' }} />
+              {t('Logo & Blur')}
+              {(watermarkSettings?.enabled || blurSettings?.enabled) && (
+                <span style={{ marginLeft: '.4em', fontSize: '.75em', padding: '1px 5px', background: 'rgba(0,0,0,0.35)', borderRadius: '3px' }}>
+                  ON
+                </span>
+              )}
+            </Button>
+          )}
         </>
       )}
 

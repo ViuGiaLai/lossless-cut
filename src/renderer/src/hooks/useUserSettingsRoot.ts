@@ -197,6 +197,12 @@ export default function useUserSettingsRoot() {
   useEffect(() => safeSetConfig({ reducedMotion }), [reducedMotion]);
   const [ffmpegHwaccel, setFfmpegHwaccel] = useState(safeGetConfigInitial('ffmpegHwaccel'));
   useEffect(() => safeSetConfig({ ffmpegHwaccel }), [ffmpegHwaccel]);
+  const [watermarkSettings, setWatermarkSettings] = useState(safeGetConfigInitial('watermarkSettings'));
+  useEffect(() => safeSetConfig({ watermarkSettings }), [watermarkSettings]);
+  const [blurSettings, setBlurSettings] = useState(safeGetConfigInitial('blurSettings'));
+  useEffect(() => safeSetConfig({ blurSettings }), [blurSettings]);
+  const [exportEncoder, setExportEncoder] = useState(safeGetConfigInitial('exportEncoder'));
+  useEffect(() => safeSetConfig({ exportEncoder }), [exportEncoder]);
 
 
   const resetKeyBindings = useCallback(() => {
@@ -316,6 +322,9 @@ export default function useUserSettingsRoot() {
     keyframesEnabled,
     reducedMotion,
     ffmpegHwaccel,
+    watermarkSettings,
+    blurSettings,
+    exportEncoder,
   };
 
   return {
@@ -399,6 +408,9 @@ export default function useUserSettingsRoot() {
     prefersReducedMotion,
     setReducedMotion,
     setFfmpegHwaccel,
+    setWatermarkSettings,
+    setBlurSettings,
+    setExportEncoder,
   };
 }
 

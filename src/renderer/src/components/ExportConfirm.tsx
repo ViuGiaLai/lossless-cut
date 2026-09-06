@@ -23,7 +23,7 @@ import type { SegmentToExport } from '../types';
 import type { GenerateOutFileNames } from '../util/outputNameTemplate';
 import { defaultCutFileTemplate, defaultCutMergedFileTemplate } from '../util/outputNameTemplate';
 import type { FFprobeStream } from '../../../common/ffprobe';
-import type { AvoidNegativeTs, PreserveMetadata } from '../../../common/types';
+import type { AvoidNegativeTs, PreserveMetadata, VideoExportEncoder, WatermarkPosition } from '../../../common/types';
 import TextInput from './TextInput';
 import type { UseSegments } from '../hooks/useSegments';
 import ExportSheet from './ExportSheet';
@@ -35,6 +35,7 @@ import type { FindNearestKeyframeTime } from '../hooks/useKeyframes';
 import { troubleshootingUrl } from '../../../common/constants';
 import OutDirSelector from './OutDirSelector';
 import mainApi from '../mainApi';
+import { showOpenDialog } from '../dialogs';
 
 
 const adjustCutFromValues = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -173,7 +174,22 @@ function ExportConfirm({
 }) {
   const { t } = useTranslation();
 
-  const { keyframeCut, toggleKeyframeCut, preserveMovData, setPreserveMovData, preserveMetadata, setPreserveMetadata, preserveChapters, setPreserveChapters, movFastStart, setMovFastStart, avoidNegativeTs, setAvoidNegativeTs, autoDeleteMergedSegments, exportConfirmEnabled, toggleExportConfirmEnabled, segmentsToChapters, setSegmentsToChapters, preserveMetadataOnMerge, setPreserveMetadataOnMerge, enableSmartCut, setEnableSmartCut, effectiveExportMode, enableOverwriteOutput, setEnableOverwriteOutput, ffmpegExperimental, setFfmpegExperimental, cutFromAdjustmentFrames, setCutFromAdjustmentFrames, cutToAdjustmentFrames, setCutToAdjustmentFrames, setCutFileTemplate, setCutMergedFileTemplate, simpleMode, keyframesEnabled } = useUserSettings();
+  const { keyframeCut, toggleKeyframeCut, preserveMovData, setPreserveMovData, preserveMetadata, setPreserveMetadata, preserveChapters, setPreserveChapters, movFastStart, setMovFastStart, avoidNegativeTs, setAvoidNegativeTs, autoDeleteMergedSegments, exportConfirmEnabled, toggleExportConfirmEnabled, segmentsToChapters, setSegmentsToChapters, preserveMetadataOnMerge, setPreserveMetadataOnMerge, enableSmartCut, setEnableSmartCut, effectiveExportMode, enableOverwriteOutput, setEnableOverwriteOutput, ffmpegExperimental, setFfmpegExperimental, cutFromAdjustmentFrames, setCutFromAdjustmentFrames, cutToAdjustmentFrames, setCutToAdjustmentFrames, setCutFileTemplate, setCutMergedFileTemplate, simpleMode, keyframesEnabled, watermarkSettings, setWatermarkSettings, blurSettings, setBlurSettings, exportEncoder, setExportEncoder } = useUserSettings();
+
+  const onChooseWatermarkImage = useCallback(async () => {
+    const { canceled, filePaths } = await showOpenDialog({
+      title: t('Select watermark / logo image'),
+      filters: [
+        { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'svg'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+      properties: ['openFile'],
+    });
+    if (!canceled && filePaths && filePaths[0]) {
+      const selectedPath = filePaths[0];
+      setWatermarkSettings((prev) => ({ ...prev, imagePath: selectedPath, enabled: true }));
+    }
+  }, [setWatermarkSettings, t]);
 
   const [showAdvanced, setShowAdvanced] = useState(!simpleMode);
 
@@ -684,6 +700,178 @@ function ExportConfirm({
                   <td>
                     {renderNoticeIcon(notices.specific['avoidNegativeTs'], rightIconStyle) ?? <HelpIcon onClick={onAvoidNegativeTsHelpPress} />}
                   </td>
+                </AnimatedTr>
+              )}
+
+              {/* Watermark Section */}
+              <AnimatedTr>
+                <td>
+                  {t('Watermark / Logo')}
+                  {watermarkSettings.enabled && (
+                    <div style={{ fontSize: '.8em', color: 'var(--gray-11)', marginTop: '0.2em' }}>
+                      {watermarkSettings.imagePath ? watermarkSettings.imagePath.split(/[\\/]/).pop() : t('No image selected')}
+                    </div>
+                  )}
+                </td>
+                <td>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
+                    {watermarkSettings.enabled && (
+                      <button
+                        type="button"
+                        onClick={onChooseWatermarkImage}
+                        style={{ padding: '2px 8px', fontSize: '.8em', borderRadius: '4px', cursor: 'pointer', background: 'var(--gray-5)', color: 'var(--gray-12)', border: '1px solid var(--gray-7)' }}
+                      >
+                        {t('Browse...')}
+                      </button>
+                    )}
+                    <Switch
+                      checked={watermarkSettings.enabled}
+                      onCheckedChange={(enabled) => {
+                        setWatermarkSettings((prev) => ({ ...prev, enabled }));
+                        if (enabled && !watermarkSettings.imagePath) {
+                          onChooseWatermarkImage();
+                        }
+                      }}
+                    />
+                  </div>
+                </td>
+                <td />
+              </AnimatedTr>
+
+              {watermarkSettings.enabled && (
+                <AnimatedTr>
+                  <td style={{ paddingLeft: '1.5em', fontSize: '.9em', color: 'var(--gray-11)' }}>
+                    {t('Watermark position & scale')}
+                  </td>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
+                      <Select
+                        value={watermarkSettings.position}
+                        onChange={(e) => setWatermarkSettings((prev) => ({ ...prev, position: e.target.value as WatermarkPosition }))}
+                        style={{ height: 22, fontSize: '.8em' }}
+                      >
+                        <option value="top-right">{t('Top Right')}</option>
+                        <option value="top-left">{t('Top Left')}</option>
+                        <option value="bottom-right">{t('Bottom Right')}</option>
+                        <option value="bottom-left">{t('Bottom Left')}</option>
+                        <option value="center">{t('Center')}</option>
+                        <option value="custom">{t('Custom (dragged)')}</option>
+                      </Select>
+                      <TextInput
+                        type="number"
+                        min={5}
+                        max={100}
+                        value={watermarkSettings.scalePercent}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10);
+                          if (!Number.isNaN(val)) setWatermarkSettings((prev) => ({ ...prev, scalePercent: val }));
+                        }}
+                        style={{ width: '3.5em', textAlign: 'center', height: 22 }}
+                        title={t('Size in % of video width')}
+                      />
+                      <span style={{ fontSize: '.8em' }}>%</span>
+                    </div>
+                  </td>
+                  <td />
+                </AnimatedTr>
+              )}
+
+              {/* Blur Section */}
+              <AnimatedTr>
+                <td>
+                  {t('Blur / Censor area')}
+                </td>
+                <td>
+                  <Switch
+                    checked={blurSettings.enabled}
+                    onCheckedChange={(enabled) => setBlurSettings((prev) => ({ ...prev, enabled }))}
+                  />
+                </td>
+                <td />
+              </AnimatedTr>
+
+              {blurSettings.enabled && (
+                <AnimatedTr>
+                  <td style={{ paddingLeft: '1.5em', fontSize: '.9em', color: 'var(--gray-11)' }}>
+                    {t('Blur Box (X, Y, W, H %)')}
+                  </td>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
+                      <TextInput
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={blurSettings.x}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          if (!Number.isNaN(val)) setBlurSettings((prev) => ({ ...prev, x: val }));
+                        }}
+                        style={{ width: '3em', textAlign: 'center', height: 22 }}
+                        title="X (%)"
+                      />
+                      <TextInput
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={blurSettings.y}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          if (!Number.isNaN(val)) setBlurSettings((prev) => ({ ...prev, y: val }));
+                        }}
+                        style={{ width: '3em', textAlign: 'center', height: 22 }}
+                        title="Y (%)"
+                      />
+                      <TextInput
+                        type="number"
+                        min={1}
+                        max={100}
+                        value={blurSettings.width}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          if (!Number.isNaN(val)) setBlurSettings((prev) => ({ ...prev, width: val }));
+                        }}
+                        style={{ width: '3em', textAlign: 'center', height: 22 }}
+                        title="Width (%)"
+                      />
+                      <TextInput
+                        type="number"
+                        min={1}
+                        max={100}
+                        value={blurSettings.height}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          if (!Number.isNaN(val)) setBlurSettings((prev) => ({ ...prev, height: val }));
+                        }}
+                        style={{ width: '3em', textAlign: 'center', height: 22 }}
+                        title="Height (%)"
+                      />
+                    </div>
+                  </td>
+                  <td />
+                </AnimatedTr>
+              )}
+
+              {/* Hardware Encoder selection */}
+              {(isEncoding || watermarkSettings.enabled || blurSettings.enabled) && (
+                <AnimatedTr>
+                  <td>
+                    {t('Fast Export GPU Encoder')}
+                  </td>
+                  <td>
+                    <Select
+                      value={exportEncoder}
+                      onChange={(e) => setExportEncoder(e.target.value as VideoExportEncoder)}
+                      style={{ height: 24, fontSize: '.8em', width: '100%' }}
+                    >
+                      <option value="auto">{t('Auto (Fast GPU: QSV / NVENC / AMF)')}</option>
+                      <option value="qsv">Intel QuickSync (h264_qsv)</option>
+                      <option value="nvenc">NVIDIA NVENC (h264_nvenc)</option>
+                      <option value="amf">AMD AMF (h264_amf)</option>
+                      <option value="mf">Windows MediaFoundation (h264_mf)</option>
+                      <option value="cpu_ultrafast">CPU Ultrafast (libx264)</option>
+                    </Select>
+                  </td>
+                  <td />
                 </AnimatedTr>
               )}
 

@@ -1,5 +1,9 @@
-process.traceDeprecation = true;
-process.traceProcessWarnings = true;
+try {
+  process.traceDeprecation = true;
+} catch {}
+try {
+  process.traceProcessWarnings = true;
+} catch {}
 
 /* eslint-disable import/first */
 // eslint-disable-next-line import/no-extraneous-dependencies

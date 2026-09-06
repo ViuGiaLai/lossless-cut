@@ -172,6 +172,22 @@ const defaults: Config = {
   keyframesEnabled: true,
   reducedMotion: 'user',
   ffmpegHwaccel: 'none',
+  watermarkSettings: {
+    enabled: false,
+    position: 'top-right',
+    scalePercent: 15,
+    opacity: 1,
+    margin: 20,
+  },
+  blurSettings: {
+    enabled: false,
+    x: 70,
+    y: 5,
+    width: 25,
+    height: 15,
+    strength: 15,
+  },
+  exportEncoder: 'auto',
 };
 
 const configFileName = 'config.json'; // note: this is also hard-coded inside electron-store

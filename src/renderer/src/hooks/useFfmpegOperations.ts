@@ -10,12 +10,13 @@ import { getEffectiveAvoidNegativeTs, getMapStreamsArgs, getStreamIdsToCopy } fr
 import { needsSmartCut, getCodecParams } from '../smartcut';
 import { getGuaranteedSegments, isDurationValid } from '../segments';
 import type { FFprobeStream } from '../../../common/ffprobe';
-import type { AvoidNegativeTs, FfmpegHwAccel, Html5ifyMode, PreserveMetadata } from '../../../common/types';
+import type { AvoidNegativeTs, BlurSettings, FfmpegHwAccel, Html5ifyMode, PreserveMetadata, VideoExportEncoder, WatermarkSettings } from '../../../common/types';
 import { deleteDispositionValue, type AllFilesMeta, type Chapter, type CopyfileStreams, type LiteFFprobeStream, type ParamsByFile, type SegmentToExport } from '../types';
 import type { LossyMode } from '../../../main';
 import { UserFacingError } from '../../errors';
 import mainApi from '../mainApi';
 import { formatFfmpegNumber, getFixChannelLayoutFilter, getHwaccelArgs, hasCustomChannelLayout } from '../../../common/util';
+import { buildVideoFilterComplex, resolveVideoEncoder } from '../util/videoEffects';
 
 const { join, resolve, dirname } = window.require('node:path');
 const { writeFile, mkdir, access, constants: { W_OK } } = window.require('node:fs/promises');
@@ -94,7 +95,7 @@ export async function maybeMkDeepOutDir({ outputDir, fileOutPath }: { outputDir:
 }
 
 
-function useFfmpegOperations({ filePath, treatInputFileModifiedTimeAsStart, treatOutputFileModifiedTimeAsStart, isEncoding, lossyMode, enableOverwriteOutput, outputPlaybackRate, cutFromAdjustmentFrames, cutToAdjustmentFrames, appendLastCommandsLog, encCustomBitrate, appendFfmpegCommandLog, ffmpegHwaccel }: {
+function useFfmpegOperations({ filePath, treatInputFileModifiedTimeAsStart, treatOutputFileModifiedTimeAsStart, isEncoding, lossyMode, enableOverwriteOutput, outputPlaybackRate, cutFromAdjustmentFrames, cutToAdjustmentFrames, appendLastCommandsLog, encCustomBitrate, appendFfmpegCommandLog, ffmpegHwaccel, watermarkSettings, blurSettings, exportEncoder }: {
   filePath: string | undefined,
   treatInputFileModifiedTimeAsStart: boolean,
   treatOutputFileModifiedTimeAsStart: boolean | null | undefined,
@@ -108,6 +109,9 @@ function useFfmpegOperations({ filePath, treatInputFileModifiedTimeAsStart, trea
   encCustomBitrate: number | undefined,
   appendFfmpegCommandLog: (args: string[]) => void,
   ffmpegHwaccel: FfmpegHwAccel,
+  watermarkSettings?: WatermarkSettings | undefined,
+  blurSettings?: BlurSettings | undefined,
+  exportEncoder?: VideoExportEncoder | undefined,
 }) {
   const shouldSkipExistingFile = useCallback(async (path: string) => {
     const fileExists = await mainApi.pathExists(path);
@@ -497,7 +501,7 @@ function useFfmpegOperations({ filePath, treatInputFileModifiedTimeAsStart, trea
   }, [appendFfmpegCommandLog, cutFromAdjustmentFrames, cutToAdjustmentFrames, filePath, getOutputPlaybackRateArgs, treatInputFileModifiedTimeAsStart, treatOutputFileModifiedTimeAsStart]);
 
   // inspired by https://gist.github.com/fernandoherreradelasheras/5eca67f4200f1a7cc8281747da08496e
-  const cutEncodeSmartPart = useCallback(async ({ cutFrom, cutTo, outPath, outFormat, videoCodec, videoBitrate, videoTimebase, allFilesMeta, copyFileStreams, videoStreamIndex, ffmpegExperimental, hasBFrames }: {
+  const cutEncodeSmartPart = useCallback(async ({ cutFrom, cutTo, outPath, outFormat, videoCodec, videoBitrate, videoTimebase, allFilesMeta, copyFileStreams, videoStreamIndex, ffmpegExperimental, hasBFrames, onProgress }: {
     cutFrom: number,
     cutTo: number,
     outPath: string,
@@ -510,8 +514,53 @@ function useFfmpegOperations({ filePath, treatInputFileModifiedTimeAsStart, trea
     videoStreamIndex: number,
     ffmpegExperimental: boolean,
     hasBFrames: number | undefined,
+    onProgress?: ((p: number) => void) | undefined,
   }) => {
     invariant(filePath != null);
+
+    const videoStream = allFilesMeta[filePath]?.streams?.find((s) => s.index === videoStreamIndex);
+    const effectsResult = buildVideoFilterComplex({
+      watermarkSettings,
+      blurSettings,
+      videoDimensions: {
+        width: videoStream?.width,
+        height: videoStream?.height,
+      },
+      videoInputIndex: 0,
+      watermarkInputIndex: 1,
+    });
+
+    if (effectsResult.hasEffects && effectsResult.filterComplex && effectsResult.videoOutputLabel) {
+      const resolved = resolveVideoEncoder(exportEncoder);
+      const targetDuration = cutTo - cutFrom;
+      const ffmpegArgs = [
+        '-hide_banner',
+        '-ss', formatFfmpegNumber(cutFrom),
+        '-i', filePath,
+        ...effectsResult.extraInputArgs,
+        '-ss', '0',
+        '-t', formatFfmpegNumber(targetDuration),
+        '-filter_complex', effectsResult.filterComplex,
+        '-map', effectsResult.videoOutputLabel,
+        '-map', '0:a?',
+        '-map', '0:s?',
+        '-c:v', resolved.codec,
+        ...resolved.extraArgs,
+        '-c:a', 'copy',
+        '-c:s', 'copy',
+        '-ignore_unknown',
+        ...getExperimentalArgs(ffmpegExperimental),
+        '-f', outFormat, '-y', outPath,
+      ];
+
+      appendFfmpegCommandLog(ffmpegArgs);
+      if (onProgress) {
+        await runFfmpegWithProgress({ ffmpegArgs, duration: targetDuration, onProgress });
+      } else {
+        await runFfmpeg(ffmpegArgs);
+      }
+      return;
+    }
 
     function getVideoArgs({ streamIndex, outputIndex }: { streamIndex: number, outputIndex: number }) {
       if (streamIndex !== videoStreamIndex) return undefined;
@@ -561,7 +610,7 @@ function useFfmpegOperations({ filePath, treatInputFileModifiedTimeAsStart, trea
 
     appendFfmpegCommandLog(ffmpegArgs);
     await runFfmpeg(ffmpegArgs);
-  }, [appendFfmpegCommandLog, filePath]);
+  }, [appendFfmpegCommandLog, filePath, watermarkSettings, blurSettings, exportEncoder]);
 
   const cutMultiple = useCallback(async ({
     outputDir, customOutDir, segments: segmentsIn, cutFileNames, fileDuration, rotation, detectedFps, onProgress: onTotalProgress, keyframeCut, copyFileStreams, allFilesMeta, outFormat, shortestFlag, ffmpegExperimental, preserveMetadata, preserveMetadataOnMerge, preserveMovData, preserveChapters, movFastStart, avoidNegativeTs, paramsByFile, chapters,
@@ -656,7 +705,7 @@ function useFfmpegOperations({ filePath, treatInputFileModifiedTimeAsStart, trea
         invariant(sourceCodecParams.videoTimebase != null);
         invariant(filePath != null);
         invariant(outFormat != null);
-        await cutEncodeSmartPart({ cutFrom, cutTo, outPath, outFormat, videoCodec, videoBitrate: encCustomBitrate != null ? encCustomBitrate * 1000 : sourceCodecParams.videoBitrate, videoStreamIndex: videoStream.index, videoTimebase: sourceCodecParams.videoTimebase, allFilesMeta, copyFileStreams: copyFileStreamsFiltered, ffmpegExperimental, hasBFrames: sourceCodecParams.videoStream.has_b_frames });
+        await cutEncodeSmartPart({ cutFrom, cutTo, outPath, outFormat, videoCodec, videoBitrate: encCustomBitrate != null ? encCustomBitrate * 1000 : sourceCodecParams.videoBitrate, videoStreamIndex: videoStream.index, videoTimebase: sourceCodecParams.videoTimebase, allFilesMeta, copyFileStreams: copyFileStreamsFiltered, ffmpegExperimental, hasBFrames: sourceCodecParams.videoStream.has_b_frames, onProgress });
       }
 
       const cutEncodeWholePart = async () => {
@@ -664,8 +713,13 @@ function useFfmpegOperations({ filePath, treatInputFileModifiedTimeAsStart, trea
         return { path: finalOutPath, created: true };
       };
 
-      if (lossyMode) {
-        console.log('Lossy mode: cutting/encoding the whole segment', { desiredCutFrom, cutTo });
+      const hasEffects = Boolean(
+        (watermarkSettings?.enabled && watermarkSettings.imagePath) ||
+        (blurSettings?.enabled && (blurSettings.width ?? 0) > 0 && (blurSettings.height ?? 0) > 0),
+      );
+
+      if (lossyMode || hasEffects) {
+        console.log('Encoding the whole segment (effects or lossy mode)', { desiredCutFrom, cutTo, lossyMode, hasEffects });
         return cutEncodeWholePart();
       }
 
@@ -728,7 +782,7 @@ function useFfmpegOperations({ filePath, treatInputFileModifiedTimeAsStart, trea
     } finally {
       if (chaptersPath) await tryDeleteFiles([chaptersPath]);
     }
-  }, [shouldSkipExistingFile, isEncoding, filePath, lossyMode, losslessCutSingle, cutEncodeSmartPart, encCustomBitrate, concatFiles]);
+  }, [shouldSkipExistingFile, isEncoding, filePath, lossyMode, losslessCutSingle, cutEncodeSmartPart, encCustomBitrate, concatFiles, watermarkSettings, blurSettings]);
 
   const concatCutSegments = useCallback(async ({ customOutDir, outFormat, segmentPaths, ffmpegExperimental, onProgress, preserveMovData, movFastStart, chapterNames, preserveMetadataOnMerge, mergedOutFilePath }: {
     customOutDir: string | undefined,

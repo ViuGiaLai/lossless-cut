@@ -116,7 +116,34 @@ export interface Config {
   keyframesEnabled: boolean,
   reducedMotion: 'always' | 'never' | 'user',
   ffmpegHwaccel: FfmpegHwAccel,
+  watermarkSettings: WatermarkSettings,
+  blurSettings: BlurSettings,
+  exportEncoder: VideoExportEncoder,
 }
+
+export type WatermarkPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'center' | 'custom';
+
+export interface WatermarkSettings {
+  enabled: boolean;
+  imagePath?: string | undefined;
+  position: WatermarkPosition;
+  customX?: number | undefined; // % (0-100)
+  customY?: number | undefined; // % (0-100)
+  scalePercent: number; // default 15 (%)
+  opacity: number; // default 1.0 (0.1 - 1.0)
+  margin: number; // default 20 (px)
+}
+
+export interface BlurSettings {
+  enabled: boolean;
+  x: number; // % (0-100)
+  y: number; // % (0-100)
+  width: number; // % (0-100)
+  height: number; // % (0-100)
+  strength: number; // default 15 (5 - 50)
+}
+
+export type VideoExportEncoder = 'auto' | 'nvenc' | 'qsv' | 'amf' | 'mf' | 'cpu_ultrafast';
 
 export interface ApiActionRequest {
   id: number

@@ -9,14 +9,15 @@ import CaptureFormatButton from './CaptureFormatButton';
 import AutoExportToggler from './AutoExportToggler';
 import Switch from './Switch';
 import useUserSettings from '../hooks/useUserSettings';
-import { askForFfPath } from '../dialogs';
+import { askForFfPath, showOpenDialog } from '../dialogs';
 import { getEnableImportChaptersOptions, isMasBuild, isStoreBuild } from '../util';
 import type { SupportedLanguage } from '../../../common/i18n';
 import { langNames } from '../../../common/i18n';
-import type { Config, EnableImportChapters, ModifierKey, TimecodeFormat } from '../../../common/types.js';
+import type { Config, EnableImportChapters, ModifierKey, TimecodeFormat, VideoExportEncoder, WatermarkPosition } from '../../../common/types.js';
 import styles from './Settings.module.css';
 import type { SelectProps } from './Select';
 import SelectRaw from './Select';
+import TextInput from './TextInput';
 import type { ButtonProps } from './Button';
 import ButtonRaw from './Button';
 import { getModifierKeyNames } from '../hooks/useTimelineScroll';
@@ -75,7 +76,22 @@ function Settings({
 }) {
   const { t } = useTranslation();
 
-  const { customOutDir, keyframeCut, toggleKeyframeCut, timecodeFormat, setTimecodeFormat, invertCutSegments, setInvertCutSegments, askBeforeClose, setAskBeforeClose, enableImportChapters, setEnableImportChapters, enableAskForFileOpenAction, setEnableAskForFileOpenAction, autoSaveProjectFile, setAutoSaveProjectFile, invertTimelineScroll, setInvertTimelineScroll, language, setLanguage, hideNotifications, setHideNotifications, hideOsNotifications, setHideOsNotifications, autoLoadTimecode, setAutoLoadTimecode, enableAutoHtml5ify, setEnableAutoHtml5ify, customFfPath, setCustomFfPath, storeProjectInWorkingDir, mouseWheelZoomModifierKey, setMouseWheelZoomModifierKey, mouseWheelFrameSeekModifierKey, setMouseWheelFrameSeekModifierKey, mouseWheelKeyframeSeekModifierKey, setMouseWheelKeyframeSeekModifierKey, segmentMouseModifierKey, setSegmentMouseModifierKey, captureFrameMethod, setCaptureFrameMethod, captureFrameQuality, setCaptureFrameQuality, captureFrameFileNameFormat, setCaptureFrameFileNameFormat, enableNativeHevc, setEnableNativeHevc, enableUpdateCheck, setEnableUpdateCheck, allowMultipleInstances, setAllowMultipleInstances, preferStrongColors, setPreferStrongColors, treatInputFileModifiedTimeAsStart, setTreatInputFileModifiedTimeAsStart, treatOutputFileModifiedTimeAsStart, setTreatOutputFileModifiedTimeAsStart, exportConfirmEnabled, toggleExportConfirmEnabled, storeWindowBounds, setStoreWindowBounds, reducedMotion, setReducedMotion, ffmpegHwaccel, setFfmpegHwaccel } = useUserSettings();
+  const { customOutDir, keyframeCut, toggleKeyframeCut, timecodeFormat, setTimecodeFormat, invertCutSegments, setInvertCutSegments, askBeforeClose, setAskBeforeClose, enableImportChapters, setEnableImportChapters, enableAskForFileOpenAction, setEnableAskForFileOpenAction, autoSaveProjectFile, setAutoSaveProjectFile, invertTimelineScroll, setInvertTimelineScroll, language, setLanguage, hideNotifications, setHideNotifications, hideOsNotifications, setHideOsNotifications, autoLoadTimecode, setAutoLoadTimecode, enableAutoHtml5ify, setEnableAutoHtml5ify, customFfPath, setCustomFfPath, storeProjectInWorkingDir, mouseWheelZoomModifierKey, setMouseWheelZoomModifierKey, mouseWheelFrameSeekModifierKey, setMouseWheelFrameSeekModifierKey, mouseWheelKeyframeSeekModifierKey, setMouseWheelKeyframeSeekModifierKey, segmentMouseModifierKey, setSegmentMouseModifierKey, captureFrameMethod, setCaptureFrameMethod, captureFrameQuality, setCaptureFrameQuality, captureFrameFileNameFormat, setCaptureFrameFileNameFormat, enableNativeHevc, setEnableNativeHevc, enableUpdateCheck, setEnableUpdateCheck, allowMultipleInstances, setAllowMultipleInstances, preferStrongColors, setPreferStrongColors, treatInputFileModifiedTimeAsStart, setTreatInputFileModifiedTimeAsStart, treatOutputFileModifiedTimeAsStart, setTreatOutputFileModifiedTimeAsStart, exportConfirmEnabled, toggleExportConfirmEnabled, storeWindowBounds, setStoreWindowBounds, reducedMotion, setReducedMotion, ffmpegHwaccel, setFfmpegHwaccel, watermarkSettings, setWatermarkSettings, blurSettings, setBlurSettings, exportEncoder, setExportEncoder } = useUserSettings();
+
+  const onChooseWatermarkImage = useCallback(async () => {
+    const { canceled, filePaths } = await showOpenDialog({
+      title: t('Select watermark / logo image'),
+      filters: [
+        { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'svg'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+      properties: ['openFile'],
+    });
+    if (!canceled && filePaths && filePaths[0]) {
+      const selectedPath = filePaths[0];
+      setWatermarkSettings((prev) => ({ ...prev, imagePath: selectedPath, enabled: true }));
+    }
+  }, [setWatermarkSettings, t]);
 
   const onLangChange = useCallback<ChangeEventHandler<HTMLSelectElement>>((e) => {
     const { value } = e.target;
@@ -560,6 +576,161 @@ function Settings({
             </Row>
           </>
         )}
+
+        <Header title={t('Watermark & Blur (Hiệu ứng video)')} />
+        <Row>
+          <KeyCell>
+            {t('Watermark / Logo')}
+            {watermarkSettings.enabled && watermarkSettings.imagePath && (
+              <div style={{ fontSize: '.8em', color: 'var(--gray-11)', marginTop: '0.2em' }}>
+                {watermarkSettings.imagePath.split(/[\\/]/).pop()}
+              </div>
+            )}
+          </KeyCell>
+          <td>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
+              {watermarkSettings.enabled && (
+                <button
+                  type="button"
+                  onClick={onChooseWatermarkImage}
+                  style={{ padding: '2px 8px', fontSize: '.8em', borderRadius: '4px', cursor: 'pointer', background: 'var(--gray-5)', color: 'var(--gray-12)', border: '1px solid var(--gray-7)' }}
+                >
+                  {t('Browse...')}
+                </button>
+              )}
+              <Switch
+                checked={watermarkSettings.enabled}
+                onCheckedChange={(enabled) => {
+                  setWatermarkSettings((prev) => ({ ...prev, enabled }));
+                  if (enabled && !watermarkSettings.imagePath) {
+                    onChooseWatermarkImage();
+                  }
+                }}
+              />
+            </div>
+          </td>
+        </Row>
+
+        {watermarkSettings.enabled && (
+          <Row>
+            <KeyCell style={{ paddingLeft: '2em' }}>{t('Watermark position & scale')}</KeyCell>
+            <td>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
+                <Select
+                  value={watermarkSettings.position}
+                  onChange={(e) => setWatermarkSettings((prev) => ({ ...prev, position: e.target.value as WatermarkPosition }))}
+                  style={{ height: 26, fontSize: '.8em' }}
+                >
+                  <option value="top-right">{t('Top Right')}</option>
+                  <option value="top-left">{t('Top Left')}</option>
+                  <option value="bottom-right">{t('Bottom Right')}</option>
+                  <option value="bottom-left">{t('Bottom Left')}</option>
+                  <option value="center">{t('Center')}</option>
+                  <option value="custom">{t('Custom (dragged)')}</option>
+                </Select>
+                <TextInput
+                  type="number"
+                  min={5}
+                  max={100}
+                  value={watermarkSettings.scalePercent}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    if (!Number.isNaN(val)) setWatermarkSettings((prev) => ({ ...prev, scalePercent: val }));
+                  }}
+                  style={{ width: '4em', textAlign: 'center', height: 26 }}
+                  title={t('Size in % of video width')}
+                />
+                <span style={{ fontSize: '.8em' }}>%</span>
+              </div>
+            </td>
+          </Row>
+        )}
+
+        <Row>
+          <KeyCell>{t('Blur / Censor area')}</KeyCell>
+          <td>
+            <Switch
+              checked={blurSettings.enabled}
+              onCheckedChange={(enabled) => setBlurSettings((prev) => ({ ...prev, enabled }))}
+            />
+          </td>
+        </Row>
+
+        {blurSettings.enabled && (
+          <Row>
+            <KeyCell style={{ paddingLeft: '2em' }}>{t('Blur Box (X, Y, W, H %)')}</KeyCell>
+            <td>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
+                <TextInput
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={blurSettings.x}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    if (!Number.isNaN(val)) setBlurSettings((prev) => ({ ...prev, x: val }));
+                  }}
+                  style={{ width: '3.2em', textAlign: 'center', height: 26 }}
+                  title="X (%)"
+                />
+                <TextInput
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={blurSettings.y}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    if (!Number.isNaN(val)) setBlurSettings((prev) => ({ ...prev, y: val }));
+                  }}
+                  style={{ width: '3.2em', textAlign: 'center', height: 26 }}
+                  title="Y (%)"
+                />
+                <TextInput
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={blurSettings.width}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    if (!Number.isNaN(val)) setBlurSettings((prev) => ({ ...prev, width: val }));
+                  }}
+                  style={{ width: '3.2em', textAlign: 'center', height: 26 }}
+                  title="Width (%)"
+                />
+                <TextInput
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={blurSettings.height}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    if (!Number.isNaN(val)) setBlurSettings((prev) => ({ ...prev, height: val }));
+                  }}
+                  style={{ width: '3.2em', textAlign: 'center', height: 26 }}
+                  title="Height (%)"
+                />
+              </div>
+            </td>
+          </Row>
+        )}
+
+        <Row>
+          <KeyCell>{t('Fast Export GPU Encoder')}</KeyCell>
+          <td>
+            <Select
+              value={exportEncoder}
+              onChange={(e) => setExportEncoder(e.target.value as VideoExportEncoder)}
+              style={{ height: 28, fontSize: '.8em', maxWidth: '16em' }}
+            >
+              <option value="auto">{t('Auto (Fast GPU: QSV / NVENC / AMF)')}</option>
+              <option value="qsv">Intel QuickSync (h264_qsv)</option>
+              <option value="nvenc">NVIDIA NVENC (h264_nvenc)</option>
+              <option value="amf">AMD AMF (h264_amf)</option>
+              <option value="mf">Windows MediaFoundation (h264_mf)</option>
+              <option value="cpu_ultrafast">CPU Ultrafast (libx264)</option>
+            </Select>
+          </td>
+        </Row>
       </tbody>
     </table>
   );
