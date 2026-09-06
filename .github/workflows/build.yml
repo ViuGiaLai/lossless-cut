@@ -113,21 +113,27 @@ jobs:
 
       - name: Build for Linux
         if: runner.os == 'Linux'
-        run: yarn electron-builder --publish onTag
+        run: yarn electron-builder --publish always -c.publish.provider=github -c.publish.owner=ViuGiaLai -c.publish.repo=lossless-cut -c.publish.releaseType=release
         env:
-          GH_TOKEN: ${{ secrets.github_token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build for Windows x64
         if: runner.os == 'Windows' && runner.arch == 'X64'
-        run: yarn electron-builder --publish onTag --win --x64
+        run: yarn electron-builder --publish always -c.publish.provider=github -c.publish.owner=ViuGiaLai -c.publish.repo=lossless-cut -c.publish.releaseType=release --win --x64
         env:
-          GH_TOKEN: ${{ secrets.github_token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build for Windows ARM64
-        if: runner.os == 'Windows' && runner.arch == 'ARM64'
-        run: yarn electron-builder --publish onTag --win --arm64
-        env:
-          GH_TOKEN: ${{ secrets.github_token }}
+      - name: Upload Windows build artifacts
+        if: runner.os == 'Windows' && runner.arch == 'X64'
+        uses: actions/upload-artifact@v4
+        with:
+          name: LosslessCut-Windows-x64
+          path: |
+            dist/*.7z
+            dist/*.zip
+            dist/*.exe
+            dist/win-unpacked/LosslessCut.exe
+          if-no-files-found: warn
 
       - run: node script/e2e.ts 'dist/mac-arm64/LosslessCut.app/Contents/MacOS/LosslessCut' 0:none screenshot.jpeg
         if: runner.os == 'macOS' && env.is_tag == 'false'
