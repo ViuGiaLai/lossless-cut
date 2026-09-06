@@ -39,11 +39,15 @@ export async function runStartupCheck({ customFfPath, onError }: { customFfPath:
         return undefined;
       }
 
-      if ('code' in err && typeof err.code === 'string' && ['EPERM', 'EACCES', 'ENOENT'].includes(err.code)) {
+      const isBlocked =
+        ('code' in err && typeof err.code === 'string' && ['EPERM', 'EACCES', 'ENOENT', 'EBUSY'].includes(err.code)) ||
+        (typeof err.message === 'string' && err.message.includes('EBUSY'));
+      if (isBlocked) {
+        const code = ('code' in err && typeof err.code === 'string') ? err.code : 'EBUSY';
         onError({
           title: i18n.t('Fatal: FFmpeg not accessible'),
           message: [
-            i18n.t('Error code: {{errorCode}}. This could mean that anti-virus or something else is blocking the execution of FFmpeg. Make sure the following file exists and is executable:', { errorCode: err.code }),
+            i18n.t('Error code: {{errorCode}}. This could mean that anti-virus or Windows Defender is temporarily scanning or blocking FFmpeg. Please wait a moment and relaunch LosslessCut.', { errorCode: code }),
             '',
             getFfmpegPath(),
             '',

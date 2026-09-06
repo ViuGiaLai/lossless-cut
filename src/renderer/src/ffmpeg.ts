@@ -550,15 +550,37 @@ const ffprobeVersionSchema = z.object({
 });
 
 export async function runFfmpegStartupCheck() {
-  // will throw ENOENT if the executables don't exist (e.g. custom FFmpeg directory pointing to a location without them)
-  await checkFfExists('ffmpeg');
-  await checkFfExists('ffprobe');
+  const check = async () => {
+    // will throw ENOENT if the executables don't exist (e.g. custom FFmpeg directory pointing to a location without them)
+    await checkFfExists('ffmpeg');
+    await checkFfExists('ffprobe');
 
-  // will throw if exit code != 0
-  const { stderr: ffmpegStderr } = await runFfmpeg(['-f', 'lavfi', '-i', 'nullsrc=s=256x256:d=1', '-f', 'null', '-']);
-  console.log('FFmpeg startup check output:', new TextDecoder().decode(ffmpegStderr));
-  const { stdout: ffprobeStout } = await runFfprobe(['-v', '0', '-of', 'json', '-show_program_version']);
-  return ffprobeVersionSchema.parse(JSON.parse(new TextDecoder().decode(ffprobeStout)));
+    // will throw if exit code != 0
+    const { stderr: ffmpegStderr } = await runFfmpeg(['-f', 'lavfi', '-i', 'nullsrc=s=256x256:d=1', '-f', 'null', '-']);
+    console.log('FFmpeg startup check output:', new TextDecoder().decode(ffmpegStderr));
+    const { stdout: ffprobeStout } = await runFfprobe(['-v', '0', '-of', 'json', '-show_program_version']);
+    return ffprobeVersionSchema.parse(JSON.parse(new TextDecoder().decode(ffprobeStout)));
+  };
+
+  const maxAttempts = 5;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await check();
+    } catch (err: unknown) {
+      const isEbusy =
+        err != null &&
+        typeof err === 'object' &&
+        (('code' in err && err.code === 'EBUSY') ||
+          (typeof (err as { message?: string }).message === 'string' && (err as { message: string }).message.includes('EBUSY')));
+      if (isEbusy && attempt < maxAttempts) {
+        console.warn(`Startup check encountered EBUSY (attempt ${attempt}/${maxAttempts}), retrying in ${attempt * 300}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, attempt * 300));
+        continue;
+      }
+      throw err;
+    }
+  }
+  return check();
 }
 
 // https://superuser.com/questions/543589/information-about-ffmpeg-command-line-options

@@ -192,19 +192,42 @@ export async function runFfmpegWithProgress({ ffmpegArgs, duration, onProgress }
   return process;
 }
 
+function isEBUSY(err: unknown): boolean {
+  if (err == null || typeof err !== 'object') return false;
+  const anyErr = err as { code?: unknown; message?: unknown; originalMessage?: unknown; cause?: unknown };
+  return (
+    anyErr.code === 'EBUSY' ||
+    (typeof anyErr.message === 'string' && anyErr.message.includes('EBUSY')) ||
+    (typeof anyErr.originalMessage === 'string' && anyErr.originalMessage.includes('EBUSY')) ||
+    (anyErr.cause != null && isEBUSY(anyErr.cause))
+  );
+}
+
 export async function runFfprobe(args: readonly string[], { timeout = isDev ? 10000 : 30000, logCli = true } = {}) {
   const ffprobePath = getFfprobePath();
   if (logCli) logger.info(getFfCommandLine('ffprobe', args));
-  const ps = execa(ffprobePath, args, getExecaBufferOptions());
-  const timer = setTimeout(() => {
-    logger.warn('killing timed out ffprobe');
-    ps.kill();
-  }, timeout);
-  try {
-    return await ps;
-  } finally {
-    clearTimeout(timer);
+
+  const maxAttempts = 5;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const ps = execa(ffprobePath, args, getExecaBufferOptions());
+    const timer = setTimeout(() => {
+      logger.warn('killing timed out ffprobe');
+      ps.kill();
+    }, timeout);
+    try {
+      return await ps;
+    } catch (err) {
+      if (isEBUSY(err) && attempt < maxAttempts) {
+        logger.warn(`ffprobe spawned EBUSY (attempt ${attempt}/${maxAttempts}), retrying in ${attempt * 300}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, attempt * 300));
+        continue;
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
   }
+  throw new Error('ffprobe failed after max retries');
 }
 
 export interface Waveform {
@@ -768,4 +791,19 @@ export async function downloadMediaUrl(url: string, outPath: string) {
 }
 
 // Don't pass complex objects (execa decorated promise) over the bridge (the process). Instead convert it to a normal promise
-export const runFfmpeg = async (...args: Parameters<typeof runFfmpegProcess>) => runFfmpegProcess(...args);
+export const runFfmpeg = async (...args: Parameters<typeof runFfmpegProcess>) => {
+  const maxAttempts = 5;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await runFfmpegProcess(...args);
+    } catch (err) {
+      if (isEBUSY(err) && attempt < maxAttempts) {
+        logger.warn(`ffmpeg spawned EBUSY (attempt ${attempt}/${maxAttempts}), retrying in ${attempt * 300}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, attempt * 300));
+        continue;
+      }
+      throw err;
+    }
+  }
+  return runFfmpegProcess(...args);
+};
